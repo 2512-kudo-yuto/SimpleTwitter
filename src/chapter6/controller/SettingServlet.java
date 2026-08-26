@@ -96,18 +96,18 @@ public class SettingServlet extends HttpServlet {
 				}.getClass().getEnclosingMethod().getName());
 
 		User user = new User();
-		
-		String idStr = request.getParameter("id");
-	    if (!StringUtils.isBlank(idStr)) {
-	        user.setId(Integer.parseInt(idStr));
-	    }
 
-	    user.setName(request.getParameter("name"));
-	    user.setAccount(request.getParameter("account"));
-	    user.setPassword(request.getParameter("password"));
-	    user.setEmail(request.getParameter("email"));
-	    user.setDescription(request.getParameter("description"));
-	    return user;
+		String idStr = request.getParameter("id");
+		if (!StringUtils.isBlank(idStr)) {
+			user.setId(Integer.parseInt(idStr));
+		}
+
+		user.setName(request.getParameter("name"));
+		user.setAccount(request.getParameter("account"));
+		user.setPassword(request.getParameter("password"));
+		user.setEmail(request.getParameter("email"));
+		user.setDescription(request.getParameter("description"));
+		return user;
 	}
 
 	private boolean isValid(User user, List<String> errorMessages) {
@@ -128,6 +128,11 @@ public class SettingServlet extends HttpServlet {
 			errorMessages.add("アカウント名を入力してください");
 		} else if (20 < account.length()) {
 			errorMessages.add("アカウント名は20文字以下で入力してください");
+		} else {
+			User existUser = new UserService().select(account);
+			if (existUser != null && existUser.getId() != user.getId()) {
+				errorMessages.add("すでに存在するアカウントです");
+			}
 		}
 		if (StringUtils.isBlank(email)) {
 			errorMessages.add("メールアドレスを入力してください");
