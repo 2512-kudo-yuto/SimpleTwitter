@@ -77,10 +77,22 @@
 						<fmt:formatDate value="${message.createdDate}"
 							pattern="yyyy/MM/dd HH:mm:ss" />
 					</div>
+					<c:if
+						test="${not empty loginUser && loginUser.id == message.userId}">
+						<div class="message-action"
+							style="display: flex; gap: 5px; margin-top: 5px;">
+							<form action="deleteMessage" method="post"
+								onsubmit="return confirm('削除してよろしいですか？');">
+								<input type="hidden" name="id" value="${message.id}"> <input
+									type="submit" value="削除">
+
+							</form>
+						</div>
+					</c:if>
 				</div>
 			</c:forEach>
 		</div>
-		<div class="copyright">Copyright(c)YourName</div>
+		<div class="copyright">Copyright(c)YutoKudo</div>
 	</div>
 </body>
 </html>

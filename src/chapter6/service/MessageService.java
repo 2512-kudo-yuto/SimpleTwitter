@@ -73,13 +73,40 @@ public class MessageService {
 		try {
 			connection = getConnection();
 			Integer id = null;
-	        if (!StringUtils.isEmpty(userId)) {
-	            id = Integer.parseInt(userId);
-	        }
+			if (!StringUtils.isEmpty(userId)) {
+				id = Integer.parseInt(userId);
+			}
 			List<UserMessage> messages = new UserMessageDao().select(connection, id, LIMIT_NUM);
 			commit(connection);
 
 			return messages;
+		} catch (RuntimeException e) {
+			rollback(connection);
+			log.log(Level.SEVERE, new Object() {
+			}.getClass().getEnclosingClass().getName() + " : " + e.toString(), e);
+			throw e;
+		} catch (Error e) {
+			rollback(connection);
+			log.log(Level.SEVERE, new Object() {
+			}.getClass().getEnclosingClass().getName() + " : " + e.toString(), e);
+			throw e;
+		} finally {
+			close(connection);
+		}
+	}
+
+	public void delete(int id) {
+
+		log.info(new Object() {
+		}.getClass().getEnclosingClass().getName() +
+				" : " + new Object() {
+				}.getClass().getEnclosingMethod().getName());
+
+		Connection connection = null;
+		try {
+			connection = getConnection();
+			new MessageDao().delete(connection, id);
+			commit(connection);
 		} catch (RuntimeException e) {
 			rollback(connection);
 			log.log(Level.SEVERE, new Object() {
