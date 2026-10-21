@@ -82,7 +82,7 @@
 						<div class="message-action"
 							style="display: flex; gap: 5px; margin-top: 5px;">
 							<form action="deleteMessage" method="post"
-								onsubmit="return confirm('削除してよろしいですか？');">
+								onsubmit="return confirm('削除してもよろしいですか？');">
 								<input type="hidden" name="id" value="${message.id}"> <input
 									type="submit" value="削除">
 

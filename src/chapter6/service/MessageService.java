@@ -25,7 +25,7 @@ public class MessageService {
 
 	/**
 	* デフォルトコンストラクタ
-	* アプリケーションの初期化を実施する。
+	* アプリケーションの初期化を実施する
 	*/
 	public MessageService() {
 		InitApplication application = InitApplication.getInstance();
