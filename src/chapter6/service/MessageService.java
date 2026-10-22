@@ -25,7 +25,7 @@ public class MessageService {
 
 	/**
 	* デフォルトコンストラクタ
-	* アプリケーションの初期化を実施する。
+	* アプリケーションの初期化を実施する
 	*/
 	public MessageService() {
 		InitApplication application = InitApplication.getInstance();
@@ -73,13 +73,47 @@ public class MessageService {
 		try {
 			connection = getConnection();
 			Integer id = null;
-	        if (!StringUtils.isEmpty(userId)) {
-	            id = Integer.parseInt(userId);
-	        }
+			if (!StringUtils.isEmpty(userId)) {
+				id = Integer.parseInt(userId);
+			}
 			List<UserMessage> messages = new UserMessageDao().select(connection, id, LIMIT_NUM);
 			commit(connection);
 
 			return messages;
+		} catch (RuntimeException e) {
+			rollback(connection);
+			log.log(Level.SEVERE, new Object() {
+			}.getClass().getEnclosingClass().getName() + " : " + e.toString(), e);
+			throw e;
+		} catch (Error e) {
+			rollback(connection);
+			log.log(Level.SEVERE, new Object() {
+			}.getClass().getEnclosingClass().getName() + " : " + e.toString(), e);
+			throw e;
+		} finally {
+			close(connection);
+		}
+	}
+
+	/**
+	 * 指定されたユーザーが投稿したツイートを削除する。
+	 *
+	 * @param id 削除対象のツイートID
+	 * @param userId ログインユーザーのID
+	 */
+	
+	public void delete(int id , int userId) {
+
+		log.info(new Object() {
+		}.getClass().getEnclosingClass().getName() +
+				" : " + new Object() {
+				}.getClass().getEnclosingMethod().getName());
+
+		Connection connection = null;
+		try {
+			connection = getConnection();
+			new MessageDao().delete(connection, id, userId);
+			commit(connection);
 		} catch (RuntimeException e) {
 			rollback(connection);
 			log.log(Level.SEVERE, new Object() {

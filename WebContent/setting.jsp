@@ -37,7 +37,7 @@
 			<br /> <input type="submit" value="更新" /> <br /> <a href="./">戻る</a>
 		</form>
 
-		<div class="copyright">Copyright(c)Your Name</div>
+		<div class="copyright">Copyright(c)YutoKudo</div>
 	</div>
 </body>
 </html>
