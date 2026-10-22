@@ -69,32 +69,40 @@ public class MessageDao {
 		}
 	}
 
-	public void delete(Connection connection, int id) {
+	/**
+	 * 指定された投稿IDと投稿者IDに一致するツイートを削除する。
+	 *
+	 * @param connection データベース接続
+	 * @param id 削除対象のツイートID
+	 * @param userId ログインユーザーのID
+	 */
+	public void delete(Connection connection, int id, int userId) {
+	    PreparedStatement ps = null;
 
-		log.info(new Object() {
-		}.getClass().getEnclosingClass().getName() +
-				" : " + new Object() {
-				}.getClass().getEnclosingMethod().getName());
+	    try {
+	        ps = connection.prepareStatement(
+	                "DELETE FROM messages WHERE id = ? AND user_id = ?");
 
-		PreparedStatement ps = null;
-		try {
-			StringBuilder sql = new StringBuilder();
-			sql.append("DELETE FROM messages ");
-			sql.append("WHERE id = ?");
+	        ps.setInt(1, id);
+	        ps.setInt(2, userId);
 
-			ps = connection.prepareStatement(sql.toString());
+	        ps.executeUpdate();
 
-			ps.setInt(1, id);
+	    } catch (SQLException e) {
+	        throw new SQLRuntimeException(e);
 
-			ps.executeUpdate();
-		} catch (SQLException e) {
-			log.log(Level.SEVERE, new Object() {
-			}.getClass().getEnclosingClass().getName() + " : " + e.toString(), e);
-			throw new SQLRuntimeException(e);
-		} finally {
-			close(ps);
-		}
+	    } finally {
+	        close(ps);
+	    }
 	}
+	
+	/**
+	 * 指定されたIDのツイートを取得する。
+	 *
+	 * @param connection データベース接続
+	 * @param id 取得対象のツイートID
+	 * @return 該当するツイート。該当レコードが存在しない場合はnull
+	 */
 	public Message select(Connection connection, int id) {
 
 		log.info(new Object(){}.getClass().getEnclosingClass().getName() + 

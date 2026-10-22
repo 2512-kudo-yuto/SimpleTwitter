@@ -8,11 +8,18 @@ import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
 
-import org.apache.commons.lang.StringUtils;
-
+import chapter6.beans.User;
 import chapter6.logging.InitApplication;
 import chapter6.service.MessageService;
+
+/**
+ * ツイートの削除リクエストを処理するサーブレット。
+ * ログインユーザーを確認し、本人が投稿したツイートのみ削除する。
+ *
+ * @author
+ */
 
 @WebServlet(urlPatterns = { "/deleteMessage" })
 public class DeleteMessageServlet extends HttpServlet {
@@ -33,23 +40,50 @@ public class DeleteMessageServlet extends HttpServlet {
 		application.init();
 	}
 
+	/**
+	 * ツイートの削除リクエストを処理する。
+	 * ログインユーザーを確認し、本人の投稿を削除する。
+	 *
+	 * @param request クライアントからのリクエスト
+	 * @param response クライアントへのレスポンス
+	 * @throws ServletException サーブレットの処理でエラーが発生した場合
+	 * @throws IOException リクエストまたはレスポンスの処理でエラーが発生した場合
+	 */
+	
 	@Override
-	protected void doPost(HttpServletRequest request, HttpServletResponse response)
-			throws ServletException, IOException {
+	protected void doPost(HttpServletRequest request,
+	        HttpServletResponse response)
+	        throws ServletException, IOException {
 
-		log.info(new Object() {
-		}.getClass().getEnclosingClass().getName() +
-				" : " + new Object() {
-				}.getClass().getEnclosingMethod().getName());
+	    // セッションとログインユーザーを取得する
+	    HttpSession session = request.getSession(false);
 
-		String idStr = request.getParameter("id");
+	    if (session == null
+	            || session.getAttribute("loginUser") == null) {
+	        response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
+	        return;
+	    }
 
-		if (!StringUtils.isBlank(idStr)) {
-			int id = Integer.parseInt(idStr);
+	    User loginUser = (User) session.getAttribute("loginUser");
 
-			new MessageService().delete(id);
-		}
+	    // 削除対象の投稿IDを取得する
+	    String idParam = request.getParameter("id");
 
-		response.sendRedirect("./");
+	    if (idParam == null || idParam.trim().isEmpty()) {
+	        response.sendError(HttpServletResponse.SC_BAD_REQUEST);
+	        return;
+	    }
+
+	    try {
+	        int id = Integer.parseInt(idParam);
+
+	        // ログインユーザーのIDも渡して削除する
+	        new MessageService().delete(id, loginUser.getId());
+
+	        response.sendRedirect("./");
+
+	    } catch (NumberFormatException e) {
+	        response.sendError(HttpServletResponse.SC_BAD_REQUEST);
+	    }
 	}
 }

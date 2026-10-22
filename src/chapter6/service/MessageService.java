@@ -95,7 +95,14 @@ public class MessageService {
 		}
 	}
 
-	public void delete(int id) {
+	/**
+	 * 指定されたユーザーが投稿したツイートを削除する。
+	 *
+	 * @param id 削除対象のツイートID
+	 * @param userId ログインユーザーのID
+	 */
+	
+	public void delete(int id , int userId) {
 
 		log.info(new Object() {
 		}.getClass().getEnclosingClass().getName() +
@@ -105,7 +112,7 @@ public class MessageService {
 		Connection connection = null;
 		try {
 			connection = getConnection();
-			new MessageDao().delete(connection, id);
+			new MessageDao().delete(connection, id, userId);
 			commit(connection);
 		} catch (RuntimeException e) {
 			rollback(connection);
