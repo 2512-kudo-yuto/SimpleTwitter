@@ -1,61 +1,67 @@
-
 package chapter6.dao;
 
 import static org.junit.Assert.*;
 
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
+import java.util.UUID;
 
 import org.junit.After;
-import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
 
 import chapter6.beans.Message;
+import chapter6.beans.User;
 import chapter6.utils.DBUtil;
 
 /**
- * MessageDaoの削除処理に関する単体テストクラス。
+ * MessageDaoの削除処理に関するテストクラス。
  *
- * <p>投稿の削除、削除対象以外の投稿への影響、
- * 存在しない投稿IDを指定した場合の動作、
- * 投稿者IDが異なる場合の削除制御、および
- * 同一投稿を複数回削除した場合の動作を検証する。</p>
+ * <p>テストごとにテスト用アカウントを2件作成し、
+ * 投稿の削除処理と削除対象以外への影響を確認する。</p>
  *
- * <p>テストの実行には、JUnit 4とMySQLへの接続環境が必要。</p>
+ * <p>テスト終了後はロールバックし、テスト用データを残さない。</p>
  *
+ * <p>実行にはJUnit 4とMySQLへの接続環境が必要。</p>
+ *
+ * @version 1.0
  */
 public class MessageDaoTest {
 
     /** テストで使用するデータベース接続。 */
     private Connection connection;
 
-    /** テスト対象のMessageDao。 */
+    /** テスト対象の投稿DAO。 */
     private MessageDao messageDao;
 
-    /** テスト用投稿の登録に使用するユーザーID。 */
+    /** テスト用アカウントを登録するDAO。 */
+    private UserDao userDao;
+
+    /** 投稿者として使用するテスト用ユーザーID。 */
     private int testUserId;
 
+    /** 別ユーザーとして使用するテスト用ユーザーID。 */
+    private int otherUserId;
+
     /**
-     * 各テストの実行前に、データベース接続と
-     * MessageDao、およびテスト用ユーザーIDを準備する。
+     * 各テストの実行前にDB接続、DAO、テスト用アカウントを準備する。
      *
-     * @throws SQLException データベースへの接続やSQLの実行に失敗した場合
+     * @throws SQLException テスト用ユーザーの登録や取得に失敗した場合
      */
     @Before
     public void setUp() throws SQLException {
         connection = DBUtil.getConnection();
-        connection.setAutoCommit(false);
-
         messageDao = new MessageDao();
-        testUserId = findTestUserId();
+        userDao = new UserDao();
+
+        testUserId = insertTestUser("tu");
+        otherUserId = insertTestUser("to");
     }
 
     /**
-     * 各テストの実行後に、テスト中のデータベース変更を
-     * ロールバックし、データベース接続を閉じる。
+     * 各テストの実行後に変更をロールバックし、DB接続を閉じる。
      *
      * @throws SQLException ロールバックまたは接続のクローズに失敗した場合
      */
@@ -71,211 +77,159 @@ public class MessageDaoTest {
     }
 
     /**
-     * 指定した投稿IDと投稿者IDを使用して、
-     * 投稿を正常に削除できることを確認する。
+     * 自分の投稿を正常に削除できることを確認する。
      *
-     * <p>【事前条件】テスト用の投稿が登録されていること。</p>
-     * <p>【操作】登録した投稿を削除する。</p>
-     * <p>【期待結果】削除後、対象の投稿を取得できないこと。</p>
+     * <p>【事前条件】テスト用ユーザーの投稿が1件登録されていること。</p>
+     * <p>【操作】投稿者IDと投稿IDを指定して削除する。</p>
+     * <p>【期待結果】削除した投稿を取得できないこと。</p>
+     *
+     * @throws SQLException DB操作に失敗した場合
      */
     @Test
     public void testDeleteExistingMessage() throws SQLException {
-        int messageId = insertTestMessage("削除対象のテスト投稿");
+        int messageId = insertTestMessage(testUserId, "削除対象のテスト投稿");
 
         messageDao.delete(connection, messageId, testUserId);
 
-        assertNull(
-            "削除した投稿は取得できないこと",
-            messageDao.select(connection, messageId)
-        );
+        assertNull("削除した投稿は取得できないこと",
+                messageDao.select(connection, messageId));
     }
 
     /**
-     * 複数の投稿が存在する場合に、指定した投稿だけが
-     * 削除され、ほかの投稿が残ることを確認する。
+     * 指定した投稿だけが削除され、ほかの投稿が残ることを確認する。
      *
-     * <p>【事前条件】テスト用の投稿が2件登録されていること。</p>
+     * <p>【事前条件】テスト用投稿が2件登録されていること。</p>
      * <p>【操作】そのうち1件を削除する。</p>
      * <p>【期待結果】削除対象は取得できず、もう1件は取得できること。</p>
+     *
+     * @throws SQLException DB操作に失敗した場合
      */
     @Test
     public void testDeleteOnlySpecifiedMessage() throws SQLException {
-        int deleteId = insertTestMessage("削除する投稿");
-        int keepId = insertTestMessage("残す投稿");
+        int deleteId = insertTestMessage(testUserId, "削除する投稿");
+        int keepId = insertTestMessage(testUserId, "残す投稿");
 
         messageDao.delete(connection, deleteId, testUserId);
 
-        assertNull(
-            "削除対象は取得できないこと",
-            messageDao.select(connection, deleteId)
-        );
-
-        assertNotNull(
-            "対象外の投稿は残ること",
-            messageDao.select(connection, keepId)
-        );
+        assertNull("削除対象は取得できないこと",
+                messageDao.select(connection, deleteId));
+        assertNotNull("対象外の投稿は残ること",
+                messageDao.select(connection, keepId));
     }
 
     /**
-     * 存在しない投稿IDを指定して削除処理を実行しても、
-     * ほかの投稿に影響しないことを確認する。
+     * 存在しない投稿IDを指定しても、ほかの投稿に影響しないことを確認する。
      *
-     * <p>【事前条件】テスト用の投稿が1件登録されていること。</p>
-     * <p>【操作】存在しない投稿IDを指定して削除する。</p>
+     * <p>【事前条件】テスト用投稿が1件登録されていること。</p>
+     * <p>【操作】存在しないID（-1）を指定して削除する。</p>
      * <p>【期待結果】登録済みの投稿が引き続き取得できること。</p>
      *
-     * @throws SQLException データベース操作に失敗した場合
+     * @throws SQLException DB操作に失敗した場合
      */
     @Test
     public void testDeleteNonExistingMessage() throws SQLException {
-        int keepId = insertTestMessage("残す投稿");
-        int nonExistingId = findUnusedMessageId();
+        int keepId = insertTestMessage(testUserId, "残す投稿");
+        int nonExistingId = -1;
+
+        assertNull("削除前から指定IDの投稿が存在しないこと",
+                messageDao.select(connection, nonExistingId));
 
         messageDao.delete(connection, nonExistingId, testUserId);
 
-        assertNotNull(
-            "別の投稿は削除されないこと",
-            messageDao.select(connection, keepId)
-        );
+        assertNotNull("別の投稿は削除されないこと",
+                messageDao.select(connection, keepId));
     }
 
     /**
-     * 投稿者IDが異なるユーザーを指定して削除処理を実行した場合に、
-     * 対象の投稿が削除されないことを確認する。
+     * 投稿者と異なるユーザーIDを指定した場合、投稿が削除されないことを確認する。
      *
-     * <p>【事前条件】テスト用投稿と、投稿者とは異なるユーザーが存在すること。</p>
-     * <p>【操作】別のユーザーIDを指定して削除する。</p>
-     * <p>【期待結果】投稿が引き続き取得できること。</p>
+     * <p>【事前条件】投稿者用と別ユーザー用のテストアカウントが存在すること。</p>
+     * <p>【操作】別ユーザーのIDを指定して削除する。</p>
+     * <p>【期待結果】元の投稿が引き続き取得できること。</p>
      *
-     * <p>別のユーザーが存在しない場合は、このテストをスキップする。</p>
-     *
-     * @throws SQLException データベース操作に失敗した場合
+     * @throws SQLException DB操作に失敗した場合
      */
     @Test
     public void testDeleteMessageOfAnotherUser() throws SQLException {
-        int messageId = insertTestMessage("他人の投稿");
-
-        int otherUserId = findOtherUserId();
-
-        Assume.assumeTrue(
-            "このテストには別のユーザーが必要です",
-            otherUserId != -1
-        );
+        int messageId = insertTestMessage(testUserId, "他人の投稿");
 
         messageDao.delete(connection, messageId, otherUserId);
 
-        assertNotNull(
-            "投稿者IDが違う場合は削除されないこと",
-            messageDao.select(connection, messageId)
-        );
+        assertNotNull("投稿者IDが違う場合は削除されないこと",
+                messageDao.select(connection, messageId));
     }
 
     /**
-     * 同一の投稿IDに対して削除処理を2回実行しても例外が発生せず、
-     * 対象の投稿が存在しない状態を維持できることを確認する。
+     * 同じ投稿を2回削除しても例外が発生せず、投稿が存在しない状態を維持する。
      *
-     * <p>【事前条件】テスト用の投稿が1件登録されていること。</p>
-     * <p>【操作】同じ投稿を2回削除する。</p>
-     * <p>【期待結果】2回目の削除後も対象の投稿を取得できないこと。</p>
+     * <p>【事前条件】テスト用投稿が1件登録されていること。</p>
+     * <p>【操作】同じ投稿IDで削除処理を2回実行する。</p>
+     * <p>【期待結果】2回目の削除後も投稿を取得できないこと。</p>
      *
-     * @throws SQLException データベース操作に失敗した場合
+     * @throws SQLException DB操作に失敗した場合
      */
     @Test
     public void testDeleteSameMessageTwice() throws SQLException {
-        int messageId = insertTestMessage("2回削除する投稿");
+        int messageId = insertTestMessage(testUserId, "2回削除する投稿");
 
         messageDao.delete(connection, messageId, testUserId);
         messageDao.delete(connection, messageId, testUserId);
 
-        assertNull(
-            "2回目の削除後も投稿が存在しないこと",
-            messageDao.select(connection, messageId)
-        );
+        assertNull("2回目の削除後も投稿が存在しないこと",
+                messageDao.select(connection, messageId));
     }
 
     /**
-     * usersテーブルから、テスト用投稿の登録に使用する
-     * ユーザーIDを1件取得する。
+     * テスト用アカウントを作成し、登録されたユーザーIDを取得する。
      *
-     * @return 取得したユーザーID
-     * @throws SQLException データベース操作に失敗した場合
+     * <p>アカウントとメールアドレスにはランダムな文字列を使用し、
+     * 既存データとの重複を避ける。</p>
+     *
+     * @param prefix アカウント名とメールアドレスの先頭に付ける文字列
+     * @return 登録されたユーザーID
+     * @throws SQLException DB操作に失敗した場合
      */
-    private int findTestUserId() throws SQLException {
-        String sql = "SELECT id FROM users LIMIT 1";
+    private int insertTestUser(String prefix) throws SQLException {
+        String token = UUID.randomUUID().toString().replace("-", "");
+        String account = prefix + token.substring(0, 16);
 
-        try (Statement statement = connection.createStatement();
-             ResultSet rs = statement.executeQuery(sql)) {
+        User user = new User();
+        user.setAccount(account);
+        user.setName("JUnit test");
+        user.setEmail(account + "@example.test");
+        user.setPassword("test-password");
+        user.setDescription("JUnit test account");
 
-            assertTrue(
-                "usersテーブルにユーザーを登録してください",
-                rs.next()
-            );
+        userDao.insert(connection, user);
 
-            return rs.getInt("id");
+        String sql = "SELECT id FROM users WHERE account = ?";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, account);
+            try (ResultSet rs = ps.executeQuery()) {
+                assertTrue("作成したテスト用アカウントを取得できること", rs.next());
+                return rs.getInt("id");
+            }
         }
     }
 
     /**
-     * テスト用の投稿を登録し、自動採番された投稿IDを取得する。
+     * 指定したユーザーのテスト用投稿を登録し、投稿IDを取得する。
      *
-     * @param text テスト用投稿の本文
-     * @return 登録された投稿のID
-     * @throws SQLException データベース操作に失敗した場合
+     * @param userId 投稿者のユーザーID
+     * @param text 投稿本文
+     * @return 登録された投稿ID
+     * @throws SQLException DB操作に失敗した場合
      */
-    private int insertTestMessage(String text) throws SQLException {
+    private int insertTestMessage(int userId, String text) throws SQLException {
         Message message = new Message();
-        message.setUserId(testUserId);
+        message.setUserId(userId);
         message.setText(text);
 
         messageDao.insert(connection, message);
 
-        try (Statement statement = connection.createStatement();
-             ResultSet rs = statement.executeQuery(
-                 "SELECT LAST_INSERT_ID() AS id")) {
-
-            assertTrue("投稿IDを取得できること", rs.next());
-
-            return rs.getInt("id");
-        }
-    }
-
-    /**
-     * テスト用投稿の投稿者とは異なるユーザーIDを取得する。
-     *
-     * @return 別のユーザーが存在する場合はそのユーザーID、
-     *         存在しない場合は-1
-     * @throws SQLException データベース操作に失敗した場合
-     */
-    private int findOtherUserId() throws SQLException {
-        String sql = "SELECT id FROM users WHERE id <> "
-                   + testUserId + " LIMIT 1";
-
-        try (Statement statement = connection.createStatement();
-             ResultSet rs = statement.executeQuery(sql)) {
-
-            if (rs.next()) {
-                return rs.getInt("id");
-            }
-
-            return -1;
-        }
-    }
-
-    /**
-     * messagesテーブルに存在しない投稿IDを取得する。
-     *
-     * @return 現在の最大投稿IDに1を加えたID
-     * @throws SQLException データベース操作に失敗した場合
-     */
-    private int findUnusedMessageId() throws SQLException {
-        String sql =
-            "SELECT COALESCE(MAX(id), 0) + 1 AS id FROM messages";
-
-        try (Statement statement = connection.createStatement();
-             ResultSet rs = statement.executeQuery(sql)) {
-
-            assertTrue(rs.next());
-
+        try (java.sql.Statement statement = connection.createStatement();
+             ResultSet rs = statement.executeQuery("SELECT LAST_INSERT_ID() AS id")) {
+            assertTrue("登録した投稿IDを取得できること", rs.next());
             return rs.getInt("id");
         }
     }
